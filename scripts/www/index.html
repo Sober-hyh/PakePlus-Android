@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>行程记录</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --primary: #4F6D7A;
+  --primary-light: #6B9EB5;
+  --accent: #F5A623;
+  --danger: #E74C3C;
+  --bg: #F0F4F8;
+  --card-bg: #FFFFFF;
+  --text: #2C3E50;
+  --text-light: #7F8C8D;
+  --border: #E0E6ED;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding-bottom: 100px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: white;
+  padding: 20px 16px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.header-actions { display: flex; gap: 12px; }
+.header-actions button {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.header-actions button:active { background: rgba(255,255,255,0.4); }
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+.month-nav button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+.month-nav button:active { background: rgba(255,255,255,0.3); }
+.month-label {
+  font-size: 20px;
+  font-weight: 600;
+  min-width: 130px;
+  text-align: center;
+}
+.total-mileage {
+  text-align: center;
+  padding: 8px 0 4px;
+}
+.total-mileage .label {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-bottom: 2px;
+}
+.total-mileage .value {
+  font-size: 28px;
+  font-weight: 700;
+}
+.total-mileage .unit {
+  font-size: 14px;
+  opacity: 0.8;
+  margin-left: 4px;
+}
+
+/* Trip List */
+.trip-list {
+  padding: 12px 16px;
+}
+.trip-item {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 10px;
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.2s;
+}
+.trip-item-inner {
+  padding: 14px 16px;
+  position: relative;
+  z-index: 2;
+  background: var(--card-bg);
+  transition: transform 0.3s;
+}
+.trip-item.swiping .trip-item-inner {
+  transition: none;
+}
+.trip-date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.trip-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+}
+.trip-customer {
+  font-size: 13px;
+  color: var(--text-light);
+  background: #EDF2F7;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.trip-details {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-light);
+  margin-bottom: 6px;
+}
+.trip-details .arrow { color: var(--accent); font-weight: bold; }
+.trip-mileage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, var(--accent), #F7C948);
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+.trip-note {
+  font-size: 12px;
+  color: var(--text-light);
+  margin-top: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.trip-note i { color: #BDC3C7; margin-top: 2px; }
+.trip-delete-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 70px;
+  background: var(--danger);
+  color: white;
+  border: none;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-light);
+}
+.empty-state i {
+  font-size: 48px;
+  color: #D5DBDF;
+  margin-bottom: 16px;
+}
+.empty-state p { font-size: 15px; }
+
+/* FAB */
+.fab {
+  position: fixed;
+  bottom: 30px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #F7C948);
+  color: white;
+  border: none;
+  font-size: 24px;
+  box-shadow: 0 4px 16px rgba(245,166,35,0.4);
+  cursor: pointer;
+  z-index: 90;
+  transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fab:active { transform: scale(0.92); }
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 200;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.modal-overlay.active {
+  display: flex;
+  opacity: 1;
+}
+.modal {
+  background: var(--card-bg);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform 0.35s ease-out;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.modal-overlay.active .modal {
+  transform: translateY(0);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--card-bg);
+  border-radius: 20px 20px 0 0;
+  z-index: 1;
+}
+.modal-header h3 {
+  font-size: 17px;
+  font-weight: 600;
+}
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--text-light);
+  cursor: pointer;
+  padding: 4px;
+}
+.modal-body { padding: 16px 20px 20px; }
+
+/* Form */
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-light);
+  margin-bottom: 6px;
+}
+.form-group label i { color: var(--primary-light); font-size: 14px; }
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  color: var(--text);
+  background: #FAFBFC;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: var(--primary-light);
+  background: white;
+}
+.form-group textarea { resize: none; height: 70px; }
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+.form-row .form-group { flex: 1; }
+.mileage-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #FFF8E7;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.btn-primary {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  margin-top: 8px;
+}
+.btn-primary:active { opacity: 0.85; }
+.btn-danger {
+  width: 100%;
+  padding: 12px;
+  background: none;
+  color: var(--danger);
+  border: 1.5px solid var(--danger);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background 0.2s;
+}
+.btn-danger:active { background: #FDEDEC; }
+
+/* Customer Management */
+.customer-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+.customer-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #FAFBFC;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+.customer-item span {
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.customer-item span i { color: var(--primary-light); }
+.customer-del {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.customer-del:active { background: #FDEDEC; }
+.customer-add-row {
+  display: flex;
+  gap: 10px;
+}
+.customer-add-row input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  outline: none;
+}
+.customer-add-row input:focus { border-color: var(--primary-light); }
+.customer-add-btn {
+  padding: 10px 16px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.customer-add-btn:active { opacity: 0.85; }
+
+/* Confirm Dialog */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 300;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.confirm-overlay.active { display: flex; }
+.confirm-box {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  width: 280px;
+  text-align: center;
+}
+.confirm-box p {
+  font-size: 16px;
+  margin-bottom: 20px;
+  color: var(--text);
+}
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+}
+.confirm-actions button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.confirm-cancel {
+  background: #EDF2F7;
+  color: var(--text);
+}
+.confirm-ok {
+  background: var(--danger);
+  color: white;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.8);
+  background: rgba(0,0,0,0.75);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  z-index: 400;
+  opacity: 0;
+  transition: all 0.3s;
+  pointer-events: none;
+}
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* Customer Select */
+.customer-select-wrap {
+  position: relative;
+}
+.customer-input-wrap {
+  display: flex;
+  gap: 8px;
+}
+.customer-input-wrap input { flex: 1; }
+.customer-input-wrap select {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+@media (min-width: 600px) {
+  .header { padding: 20px 24px 16px; }
+  .trip-list { padding: 12px 24px; }
+  .modal { border-radius: 20px; margin: auto; max-height: 80vh; }
+  .modal-overlay.active { align-items: center; }
+  .modal-overlay.active .modal { transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-top">
+    <div class="header-actions">
+      <button id="btnCustomers" title="管理客户"><i class="fas fa-users"></i></button>
+    </div>
+    <div class="month-nav">
+      <button id="btnPrev"><i class="fas fa-chevron-left"></i></button>
+      <span class="month-label" id="monthLabel"></span>
+      <button id="btnNext"><i class="fas fa-chevron-right"></i></button>
+    </div>
+    <div class="header-actions">
+      <button id="btnExport" title="导出 Excel"><i class="fas fa-file-export"></i></button>
+    </div>
+  </div>
+  <div class="total-mileage">
+    <div class="label">本月总里程</div>
+    <div><span class="value" id="totalMileage">0</span><span class="unit">公里</span></div>
+  </div>
+</div>
+
+<!-- Trip List -->
+<div class="trip-list" id="tripList"></div>
+
+<!-- FAB -->
+<button class="fab" id="btnAdd"><i class="fas fa-plus"></i></button>
+
+<!-- Trip Modal -->
+<div class="modal-overlay" id="tripModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="tripModalTitle">添加行程</h3>
+      <button class="modal-close" id="tripModalClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label><i class="fas fa-calendar-day"></i> 日期</label>
+        <input type="date" id="tripDate">
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-user"></i> 客户</label>
+        <div class="customer-input-wrap">
+          <input type="text" id="tripCustomer" placeholder="输入或选择客户">
+          <select id="tripCustomerSelect">
+            <option value="">选择...</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label><i class="fas fa-tachometer-alt"></i> 起始里程</label>
+          <input type="number" id="tripStart" placeholder="0" inputmode="decimal">
+        </div>
+        <div class="form-group">
+          <label><i class="fas fa-flag-checkered"></i> 结束里程</label>
+          <input type="number" id="tripEnd" placeholder="0" inputmode="decimal">
+        </div>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-road"></i> 里程</label>
+        <div class="mileage-display">
+          <i class="fas fa-car"></i>
+          <span id="tripMileageCalc">0</span> 公里
+        </div>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-sticky-note"></i> 备注</label>
+        <textarea id="tripNote" placeholder="可选备注..."></textarea>
+      </div>
+      <button class="btn-primary" id="btnSaveTrip">保存</button>
+      <button class="btn-danger" id="btnDeleteTrip" style="display:none">删除此行程</button>
+    </div>
+  </div>
+</div>
+
+<!-- Customer Modal -->
+<div class="modal-overlay" id="customerModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>管理客户</h3>
+      <button class="modal-close" id="customerModalClose"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="customer-list" id="customerList"></div>
+      <div class="customer-add-row">
+        <input type="text" id="newCustomerName" placeholder="新客户名称">
+        <button class="customer-add-btn" id="btnAddCustomer"><i class="fas fa-plus"></i> 添加</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="confirm-overlay" id="confirmDialog">
+  <div class="confirm-box">
+    <p id="confirmText">确认删除？</p>
+    <div class="confirm-actions">
+      <button class="confirm-cancel" id="confirmCancel">取消</button>
+      <button class="confirm-ok" id="confirmOk">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ Data Layer ============
+const STORAGE_KEY = 'tripTracker';
+
+function loadData() {
+  try {
+    const d = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    return d && d.customers && d.trips ? d : { customers: [], trips: {} };
+  } catch { return { customers: [], trips: {} }; }
+}
+
+function saveData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+let data = loadData();
+
+// ============ State ============
+let currentYear, currentMonth;
+let editingTripId = null;
+let confirmCallback = null;
+
+// ============ Utils ============
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function monthKey(y, m) {
+  return `${y}-${String(m).padStart(2, '0')}`;
+}
+
+function formatDateCN(dateStr) {
+  const d = new Date(dateStr);
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function showConfirm(text, cb) {
+  document.getElementById('confirmText').textContent = text;
+  document.getElementById('confirmDialog').classList.add('active');
+  confirmCallback = cb;
+}
+
+function hideConfirm() {
+  document.getElementById('confirmDialog').classList.remove('active');
+  confirmCallback = null;
+}
+
+// ============ Month Navigation ============
+function initMonth() {
+  const now = new Date();
+  currentYear = now.getFullYear();
+  currentMonth = now.getMonth() + 1;
+}
+
+function updateMonthLabel() {
+  document.getElementById('monthLabel').textContent = `${currentYear}年${currentMonth}月`;
+}
+
+function getMonthTrips() {
+  const key = monthKey(currentYear, currentMonth);
+  return (data.trips[key] || []).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function calcMonthTotal() {
+  return getMonthTrips().reduce((s, t) => s + (t.mileage || 0), 0);
+}
+
+function refreshAll() {
+  updateMonthLabel();
+  renderTrips();
+  document.getElementById('totalMileage').textContent = calcMonthTotal();
+}
+
+// ============ Render Trips ============
+function renderTrips() {
+  const list = document.getElementById('tripList');
+  const trips = getMonthTrips();
+
+  if (trips.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <i class="fas fa-route"></i>
+        <p>本月暂无行程记录</p>
+        <p style="font-size:13px;margin-top:6px;color:#BDC3C7">点击右下角 + 添加</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = trips.map(t => `
+    <div class="trip-item" data-id="${t.id}">
+      <button class="trip-delete-btn" onclick="deleteTrip('${t.id}')"><i class="fas fa-trash-alt"></i></button>
+      <div class="trip-item-inner" onclick="editTrip('${t.id}')">
+        <div class="trip-date-row">
+          <span class="trip-date"><i class="fas fa-calendar-day"></i> ${formatDateCN(t.date)}</span>
+          <span class="trip-customer"><i class="fas fa-user"></i> ${t.customer}</span>
+          <span class="trip-mileage-badge"><i class="fas fa-car"></i> ${t.mileage} km</span>
+        </div>
+        <div class="trip-details">
+          <i class="fas fa-tachometer-alt"></i>
+          <span>${t.startMileage}</span>
+          <span class="arrow">→</span>
+          <span>${t.endMileage}</span>
+        </div>
+        ${t.note ? `<div class="trip-note"><i class="fas fa-sticky-note"></i><span>${t.note}</span></div>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  initSwipe();
+}
+
+// ============ Swipe to Delete ============
+function initSwipe() {
+  document.querySelectorAll('.trip-item').forEach(item => {
+    let startX = 0, dx = 0, swiping = false;
+    const inner = item.querySelector('.trip-item-inner');
+
+    inner.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      dx = 0;
+      swiping = false;
+      item.classList.add('swiping');
+    });
+
+    inner.addEventListener('touchmove', e => {
+      dx = e.touches[0].clientX - startX;
+      if (dx < -10) {
+        swiping = true;
+        const offset = Math.max(dx, -70);
+        inner.style.transform = `translateX(${offset}px)`;
+      }
+    });
+
+    inner.addEventListener('touchend', () => {
+      item.classList.remove('swiping');
+      if (dx < -50) {
+        inner.style.transform = 'translateX(-70px)';
+      } else {
+        inner.style.transform = 'translateX(0)';
+      }
+    });
+
+    // Reset swipe when clicking elsewhere
+    inner.addEventListener('click', () => {
+      document.querySelectorAll('.trip-item-inner').forEach(el => {
+        el.style.transform = 'translateX(0)';
+      });
+    });
+  });
+}
+
+// ============ Trip Modal ============
+function openTripModal(trip) {
+  const modal = document.getElementById('tripModal');
+  const title = document.getElementById('tripModalTitle');
+  const btnDelete = document.getElementById('btnDeleteTrip');
+
+  populateCustomerSelect();
+
+  if (trip) {
+    title.textContent = '编辑行程';
+    editingTripId = trip.id;
+    document.getElementById('tripDate').value = trip.date;
+    document.getElementById('tripCustomer').value = trip.customer;
+    document.getElementById('tripStart').value = trip.startMileage;
+    document.getElementById('tripEnd').value = trip.endMileage;
+    document.getElementById('tripNote').value = trip.note || '';
+    btnDelete.style.display = 'block';
+  } else {
+    title.textContent = '添加行程';
+    editingTripId = null;
+    const today = new Date();
+    document.getElementById('tripDate').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    document.getElementById('tripCustomer').value = '';
+    document.getElementById('tripNote').value = '';
+    btnDelete.style.display = 'none';
+
+    // Auto-fill start mileage from last trip
+    const trips = getMonthTrips();
+    if (trips.length > 0) {
+      document.getElementById('tripStart').value = trips[trips.length - 1].endMileage;
+    } else {
+      document.getElementById('tripStart').value = '';
+    }
+    document.getElementById('tripEnd').value = '';
+  }
+  updateMileageCalc();
+  modal.classList.add('active');
+}
+
+function closeTripModal() {
+  document.getElementById('tripModal').classList.remove('active');
+  editingTripId = null;
+}
+
+function updateMileageCalc() {
+  const s = parseFloat(document.getElementById('tripStart').value) || 0;
+  const e = parseFloat(document.getElementById('tripEnd').value) || 0;
+  const m = Math.max(0, e - s);
+  document.getElementById('tripMileageCalc').textContent = m;
+}
+
+function saveTrip() {
+  const date = document.getElementById('tripDate').value;
+  const customer = document.getElementById('tripCustomer').value.trim();
+  const startMileage = parseFloat(document.getElementById('tripStart').value);
+  const endMileage = parseFloat(document.getElementById('tripEnd').value);
+  const note = document.getElementById('tripNote').value.trim();
+
+  if (!date) return showToast('请选择日期');
+  if (!customer) return showToast('请输入客户');
+  if (isNaN(startMileage)) return showToast('请输入起始里程');
+  if (isNaN(endMileage)) return showToast('请输入结束里程');
+  if (endMileage < startMileage) return showToast('结束里程不能小于起始里程');
+
+  const mileage = Math.round(endMileage - startMileage);
+  const key = monthKey(new Date(date).getFullYear(), new Date(date).getMonth() + 1);
+
+  if (!data.trips[key]) data.trips[key] = [];
+
+  // Auto-save new customer
+  if (!data.customers.includes(customer)) {
+    data.customers.push(customer);
+  }
+
+  if (editingTripId) {
+    // Edit: find and update (might be in different month)
+    for (const mk in data.trips) {
+      const idx = data.trips[mk].findIndex(t => t.id === editingTripId);
+      if (idx !== -1) {
+        const oldKey = mk;
+        data.trips[oldKey].splice(idx, 1);
+        if (data.trips[oldKey].length === 0) delete data.trips[oldKey];
+        break;
+      }
+    }
+    data.trips[key].push({ id: editingTripId, date, customer, startMileage, endMileage, mileage, note });
+  } else {
+    data.trips[key].push({ id: genId(), date, customer, startMileage, endMileage, mileage, note });
+  }
+
+  saveData(data);
+  closeTripModal();
+  refreshAll();
+  showToast(editingTripId ? '已更新' : '已添加');
+}
+
+function editTrip(id) {
+  for (const mk in data.trips) {
+    const trip = data.trips[mk].find(t => t.id === id);
+    if (trip) {
+      openTripModal(trip);
+      return;
+    }
+  }
+}
+
+function deleteTrip(id) {
+  showConfirm('确认删除这条行程？', () => {
+    for (const mk in data.trips) {
+      const idx = data.trips[mk].findIndex(t => t.id === id);
+      if (idx !== -1) {
+        data.trips[mk].splice(idx, 1);
+        if (data.trips[mk].length === 0) delete data.trips[mk];
+        break;
+      }
+    }
+    saveData(data);
+    refreshAll();
+    showToast('已删除');
+  });
+}
+
+// ============ Customer Management ============
+function openCustomerModal() {
+  renderCustomerList();
+  document.getElementById('customerModal').classList.add('active');
+}
+
+function closeCustomerModal() {
+  document.getElementById('customerModal').classList.remove('active');
+}
+
+function renderCustomerList() {
+  const list = document.getElementById('customerList');
+  if (data.customers.length === 0) {
+    list.innerHTML = '<div style="text-align:center;color:#BDC3C7;padding:20px;font-size:14px">暂无客户</div>';
+    return;
+  }
+  list.innerHTML = data.customers.map((c, i) => `
+    <div class="customer-item">
+      <span><i class="fas fa-user-circle"></i> ${c}</span>
+      <button class="customer-del" onclick="removeCustomer(${i})"><i class="fas fa-trash-alt"></i></button>
+    </div>
+  `).join('');
+}
+
+function addCustomer() {
+  const input = document.getElementById('newCustomerName');
+  const name = input.value.trim();
+  if (!name) return showToast('请输入客户名称');
+  if (data.customers.includes(name)) return showToast('客户已存在');
+  data.customers.push(name);
+  saveData(data);
+  input.value = '';
+  renderCustomerList();
+  showToast('已添加');
+}
+
+function removeCustomer(idx) {
+  showConfirm(`确认删除客户"${data.customers[idx]}"？`, () => {
+    data.customers.splice(idx, 1);
+    saveData(data);
+    renderCustomerList();
+    showToast('已删除');
+  });
+}
+
+function populateCustomerSelect() {
+  const sel = document.getElementById('tripCustomerSelect');
+  sel.innerHTML = '<option value="">选择...</option>' +
+    data.customers.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+// ============ Export Excel ============
+function exportExcel() {
+  const trips = getMonthTrips();
+  if (trips.length === 0) return showToast('本月无数据可导出');
+
+  const rows = [['日期', '客户', '起始', '终止', '里程']];
+  let total = 0;
+  trips.forEach(t => {
+    rows.push([formatDateCN(t.date), t.customer, t.startMileage, t.endMileage, t.mileage]);
+    total += t.mileage;
+  });
+  rows.push(['', '', '', '合计', total]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `${currentYear}年${currentMonth}月`);
+  XLSX.writeFile(wb, `行程记录_${currentYear}年${currentMonth}月.xlsx`);
+  showToast('导出成功');
+}
+
+// ============ Events ============
+document.getElementById('btnPrev').addEventListener('click', () => {
+  currentMonth--;
+  if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+  refreshAll();
+});
+
+document.getElementById('btnNext').addEventListener('click', () => {
+  currentMonth++;
+  if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+  refreshAll();
+});
+
+document.getElementById('btnAdd').addEventListener('click', () => openTripModal(null));
+document.getElementById('tripModalClose').addEventListener('click', closeTripModal);
+document.getElementById('btnSaveTrip').addEventListener('click', saveTrip);
+document.getElementById('btnDeleteTrip').addEventListener('click', () => {
+  if (editingTripId) {
+    showConfirm('确认删除这条行程？', () => {
+      for (const mk in data.trips) {
+        const idx = data.trips[mk].findIndex(t => t.id === editingTripId);
+        if (idx !== -1) {
+          data.trips[mk].splice(idx, 1);
+          if (data.trips[mk].length === 0) delete data.trips[mk];
+          break;
+        }
+      }
+      saveData(data);
+      closeTripModal();
+      refreshAll();
+      showToast('已删除');
+    });
+  }
+});
+
+document.getElementById('tripStart').addEventListener('input', updateMileageCalc);
+document.getElementById('tripEnd').addEventListener('input', updateMileageCalc);
+
+document.getElementById('tripCustomerSelect').addEventListener('change', function() {
+  if (this.value) {
+    document.getElementById('tripCustomer').value = this.value;
+  }
+});
+
+document.getElementById('btnCustomers').addEventListener('click', openCustomerModal);
+document.getElementById('customerModalClose').addEventListener('click', closeCustomerModal);
+document.getElementById('btnAddCustomer').addEventListener('click', addCustomer);
+document.getElementById('newCustomerName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addCustomer();
+});
+
+document.getElementById('btnExport').addEventListener('click', exportExcel);
+
+document.getElementById('confirmCancel').addEventListener('click', hideConfirm);
+document.getElementById('confirmOk').addEventListener('click', () => {
+  if (confirmCallback) confirmCallback();
+  hideConfirm();
+});
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) {
+      overlay.classList.remove('active');
+    }
+  });
+});
+
+// ============ Init ============
+initMonth();
+refreshAll();
+</script>
+</body>
+</html>
