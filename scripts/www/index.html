@@ -328,6 +328,37 @@ body {
   font-weight: 600;
   color: var(--accent);
 }
+.mileage-display input {
+  width: 80px;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent);
+  outline: none;
+  font-family: inherit;
+}
+.mileage-display input:disabled {
+  opacity: 1;
+  -webkit-text-fill-color: var(--accent);
+}
+.mileage-display input:not(:disabled) {
+  background: white;
+  border-radius: 6px;
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+}
+.mileage-edit-btn {
+  background: none;
+  border: none;
+  color: var(--primary-light);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.mileage-edit-btn:active { background: rgba(0,0,0,0.05); }
 .btn-primary {
   width: 100%;
   padding: 14px;
@@ -567,7 +598,9 @@ body {
         <label><i class="fas fa-road"></i> 里程</label>
         <div class="mileage-display">
           <i class="fas fa-car"></i>
-          <span id="tripMileageCalc">0</span> 公里
+          <input type="number" id="tripMileageCalc" value="0" disabled inputmode="decimal">
+          <span>公里</span>
+          <button type="button" class="mileage-edit-btn" id="btnEditMileage" title="手动编辑里程"><i class="fas fa-pen"></i></button>
         </div>
       </div>
       <div class="form-group">
@@ -632,6 +665,7 @@ let data = loadData();
 let currentYear, currentMonth;
 let editingTripId = null;
 let confirmCallback = null;
+let mileageManuallyEdited = false;
 
 // ============ Utils ============
 function genId() {
@@ -719,7 +753,7 @@ function renderTrips() {
           <i class="fas fa-tachometer-alt"></i>
           <span>${t.startMileage}</span>
           <span class="arrow">→</span>
-          <span>${t.endMileage}</span>
+          <span>${t.endMileage !== null && t.endMileage !== undefined ? t.endMileage : '—'}</span>
         </div>
         ${t.note ? `<div class="trip-note"><i class="fas fa-sticky-note"></i><span>${t.note}</span></div>` : ''}
       </div>
@@ -776,6 +810,10 @@ function openTripModal(trip) {
   const btnDelete = document.getElementById('btnDeleteTrip');
 
   populateCustomerSelect();
+  // Reset mileage edit state
+  mileageManuallyEdited = false;
+  const mileageInput = document.getElementById('tripMileageCalc');
+  mileageInput.disabled = true;
 
   if (trip) {
     title.textContent = '编辑行程';
@@ -783,7 +821,7 @@ function openTripModal(trip) {
     document.getElementById('tripDate').value = trip.date;
     document.getElementById('tripCustomer').value = trip.customer;
     document.getElementById('tripStart').value = trip.startMileage;
-    document.getElementById('tripEnd').value = trip.endMileage;
+    document.getElementById('tripEnd').value = trip.endMileage || '';
     document.getElementById('tripNote').value = trip.note || '';
     btnDelete.style.display = 'block';
   } else {
@@ -814,26 +852,44 @@ function closeTripModal() {
 }
 
 function updateMileageCalc() {
+  if (mileageManuallyEdited) return; // Don't overwrite manually edited mileage
   const s = parseFloat(document.getElementById('tripStart').value) || 0;
   const e = parseFloat(document.getElementById('tripEnd').value) || 0;
   const m = Math.max(0, e - s);
-  document.getElementById('tripMileageCalc').textContent = m;
+  document.getElementById('tripMileageCalc').value = m;
 }
 
 function saveTrip() {
   const date = document.getElementById('tripDate').value;
   const customer = document.getElementById('tripCustomer').value.trim();
   const startMileage = parseFloat(document.getElementById('tripStart').value);
-  const endMileage = parseFloat(document.getElementById('tripEnd').value);
+  const endMileageRaw = document.getElementById('tripEnd').value;
+  const endMileage = endMileageRaw !== '' ? parseFloat(endMileageRaw) : null;
+  const manualMileage = parseFloat(document.getElementById('tripMileageCalc').value) || 0;
   const note = document.getElementById('tripNote').value.trim();
 
   if (!date) return showToast('请选择日期');
   if (!customer) return showToast('请输入客户');
   if (isNaN(startMileage)) return showToast('请输入起始里程');
-  if (isNaN(endMileage)) return showToast('请输入结束里程');
-  if (endMileage < startMileage) return showToast('结束里程不能小于起始里程');
 
-  const mileage = Math.round(endMileage - startMileage);
+  let mileage, finalEndMileage;
+
+  if (mileageManuallyEdited) {
+    // Mileage was manually edited: calculate endMileage from start + mileage
+    mileage = manualMileage;
+    finalEndMileage = startMileage + mileage;
+    document.getElementById('tripEnd').value = finalEndMileage;
+  } else if (endMileage !== null && !isNaN(endMileage)) {
+    // End mileage provided
+    if (endMileage < startMileage) return showToast('结束里程不能小于起始里程');
+    mileage = Math.round(endMileage - startMileage);
+    finalEndMileage = endMileage;
+  } else {
+    // No end mileage: mileage = 0
+    mileage = 0;
+    finalEndMileage = null;
+  }
+
   const key = monthKey(new Date(date).getFullYear(), new Date(date).getMonth() + 1);
 
   if (!data.trips[key]) data.trips[key] = [];
@@ -844,19 +900,17 @@ function saveTrip() {
   }
 
   if (editingTripId) {
-    // Edit: find and update (might be in different month)
     for (const mk in data.trips) {
       const idx = data.trips[mk].findIndex(t => t.id === editingTripId);
       if (idx !== -1) {
-        const oldKey = mk;
-        data.trips[oldKey].splice(idx, 1);
-        if (data.trips[oldKey].length === 0) delete data.trips[oldKey];
+        data.trips[mk].splice(idx, 1);
+        if (data.trips[mk].length === 0) delete data.trips[mk];
         break;
       }
     }
-    data.trips[key].push({ id: editingTripId, date, customer, startMileage, endMileage, mileage, note });
+    data.trips[key].push({ id: editingTripId, date, customer, startMileage, endMileage: finalEndMileage, mileage, note });
   } else {
-    data.trips[key].push({ id: genId(), date, customer, startMileage, endMileage, mileage, note });
+    data.trips[key].push({ id: genId(), date, customer, startMileage, endMileage: finalEndMileage, mileage, note });
   }
 
   saveData(data);
@@ -944,8 +998,8 @@ function populateCustomerSelect() {
 
 // ============ Export Excel ============
 function exportExcel() {
-  const trips = getMonthTrips();
-  if (trips.length === 0) return showToast('本月无数据可导出');
+  const trips = getMonthTrips().filter(t => t.mileage > 0);
+  if (trips.length === 0) return showToast('本月无有效数据可导出');
 
   const rows = [['日期', '客户', '起始', '终止', '里程']];
   let total = 0;
@@ -1005,6 +1059,27 @@ document.getElementById('btnDeleteTrip').addEventListener('click', () => {
 
 document.getElementById('tripStart').addEventListener('input', updateMileageCalc);
 document.getElementById('tripEnd').addEventListener('input', updateMileageCalc);
+
+document.getElementById('btnEditMileage').addEventListener('click', () => {
+  const mileageInput = document.getElementById('tripMileageCalc');
+  if (mileageInput.disabled) {
+    mileageInput.disabled = false;
+    mileageInput.focus();
+    mileageManuallyEdited = true;
+    showToast('已解锁里程编辑');
+  } else {
+    mileageInput.disabled = true;
+    mileageManuallyEdited = false;
+    updateMileageCalc();
+  }
+});
+
+document.getElementById('tripMileageCalc').addEventListener('input', () => {
+  if (!mileageManuallyEdited) return;
+  const s = parseFloat(document.getElementById('tripStart').value) || 0;
+  const m = parseFloat(document.getElementById('tripMileageCalc').value) || 0;
+  document.getElementById('tripEnd').value = s + m;
+});
 
 document.getElementById('tripCustomerSelect').addEventListener('change', function() {
   if (this.value) {
